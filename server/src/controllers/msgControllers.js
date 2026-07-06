@@ -1,15 +1,13 @@
 const Message = require(`../models/Message.js`);
 
 const getMessage = async (req, res) => {
-    try{
-        
+    try {
         const Messages = await Message.find()
-        .populate('user', "name")
-        .populate('likes', 'name')
-        .sort({ createdAt: -1 });
+            .populate('user', "name role")
+            .populate('likes', 'name')
+            .sort({ createdAt: -1 });
         res.status(200).json(Messages);
-
-    }catch(err){
+    } catch(err) {
         res.status(500).json(`Failed to fetch messages!`);
     }
 }

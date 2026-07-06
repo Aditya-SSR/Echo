@@ -6,8 +6,17 @@ const jwt = require(`jsonwebtoken`);
 const {registerUser, loginUser, getUsers} = require(`../controllers/authControllers.js`);
 
 
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+const generateToken = (user) => {
+    return jwt.sign(
+        { 
+            id: user._id, 
+            name: user.name,
+            email: user.email,
+            role: user.role
+        }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '7d' }
+    );
 };
 
 
@@ -24,14 +33,9 @@ router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/login', session: false }),
     (req, res) => {
 
-        const token = generateToken(req.user._id);
+        const token = generateToken(req.user);
         
-        res.status(200).json({
-            _id: req.user._id,
-            name: req.user.name,
-            email: req.user.email,
-            token: token
-        });
+        res.redirect(`http://localhost:3000/auth-callback?token=${token}`);
     }
 );
 
