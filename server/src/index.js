@@ -2,6 +2,7 @@ require(`dotenv`).config();
 
 const express = require(`express`);
 const app = express();
+app.set("trust proxy", 1);
 const passport = require('passport');
 const cors = require(`cors`);
 require('./config/passport');
@@ -13,7 +14,7 @@ const msgRoutes = require(`./routes/msgRoutes.js`);
 const requestLogger = require(`./middlewares/logger.js`);
 
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000', 'https://echo-frontend-69m5.onrender.com'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
