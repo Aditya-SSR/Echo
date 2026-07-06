@@ -2,16 +2,27 @@ import Message from "../components/Message";
 import CreateMessage from "../components/CreateMessage";
 import { getMessages } from "../services/Messages/messages.js";
 import AutoRefresh from "../components/AutoRefresh.jsx";
+import DisclaimerModal from "../components/DisclaimerModal.jsx";
 
 export default async function Home() {
     try {
         const messages = await getMessages();
 
+
+        const sortedMessages = [...messages].sort((a: any, b: any) => {
+            const aIsAdmin = a.user?.role === "admin";
+            const bIsAdmin = b.user?.role === "admin";
+            
+            if (aIsAdmin && !bIsAdmin) return -1; 
+            if (!aIsAdmin && bIsAdmin) return 1;  
+            return 0;                                 
+        });
+
         return (
             <main className="min-h-screen bg-white p-8 pb-32">
                 <div className="mx-auto max-w-2xl">
                     <div className="space-y-4">
-                        {messages.map((message : any) => (
+                        {sortedMessages.map((message: any) => (
                             <Message
                                 key={message._id}
                                 message={message}
@@ -22,6 +33,7 @@ export default async function Home() {
 
                 <CreateMessage /> 
                 <AutoRefresh />
+                <DisclaimerModal />
             </main>
         );
     } catch (err) {
