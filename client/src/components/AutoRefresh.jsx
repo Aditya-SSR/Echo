@@ -8,7 +8,7 @@ export default function AutoRefresh({ refreshData }) {
         const interval = setInterval(() => {
   
             refreshData(); 
-        }, 20000); 
+        }, 10000); 
 
         return () => clearInterval(interval);
     }, [refreshData]);
