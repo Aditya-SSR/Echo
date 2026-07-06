@@ -9,14 +9,16 @@ export default async function Home() {
         const messages = await getMessages();
 
 
-        const sortedMessages = [...messages].sort((a: any, b: any) => {
-            const aIsAdmin = a.user?.role === "admin";
-            const bIsAdmin = b.user?.role === "admin";
-            
-            if (aIsAdmin && !bIsAdmin) return -1; 
-            if (!aIsAdmin && bIsAdmin) return 1;  
-            return 0;                                 
-        });
+        const sortedMessages = Array.isArray(messages)
+            ? [...messages].sort((a: any, b: any) => {
+                const aIsAdmin = a?.user && typeof a.user === "object" && a.user.role === "admin";
+                const bIsAdmin = b?.user && typeof b.user === "object" && b.user.role === "admin";
+                
+                if (aIsAdmin && !bIsAdmin) return -1; 
+                if (!aIsAdmin && bIsAdmin) return 1;  
+                return 0;                                 
+              })
+            : [];
 
         return (
             <main className="min-h-screen bg-white p-8 pb-32">
@@ -37,7 +39,7 @@ export default async function Home() {
             </main>
         );
     } catch (err) {
-        console.error(err);
+        console.error("Frontend Render Error:", err);
         return (
             <main className="flex min-h-screen items-center justify-center bg-white">
                 <h1 className="text-red-500 text-5xl">
