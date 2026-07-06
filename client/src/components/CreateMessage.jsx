@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import { createMessageService } from "../services/Messages/messages";
 
-export default function CreateMessage() {
+
+export default function CreateMessage({ setMessages }) {
     const [text, setText] = useState("");
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -29,10 +30,13 @@ export default function CreateMessage() {
 
         setLoading(true);
         try {
-            await createMessageService(text);
+   
+            const responseData = await createMessageService(text);
             setText("");
 
-            router.refresh();
+            if (responseData) {
+                setMessages((prev) => [responseData, ...prev]);
+            }
         } catch (err) {
             console.error("Failed to post message:", err);
             alert("Error sending message.");

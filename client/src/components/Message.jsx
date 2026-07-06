@@ -21,7 +21,7 @@ function getStampColor(name) {
     return STAMP_COLORS[code % STAMP_COLORS.length];
 }
 
-export default function Message({ message }) {
+export default function Message({ message, setMessages }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [likesCount, setLikesCount] = useState(message.likes?.length || 0);
     const [isLiked, setIsLiked] = useState(false);
@@ -75,11 +75,26 @@ export default function Message({ message }) {
             if (isLiked) {
                 setLikesCount((prev) => Math.max(0, prev - 1));
                 setIsLiked(false);
+
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg._id === message._id
+                            ? { ...msg, likes: msg.likes.filter((id) => id !== currentUser.id) }
+                            : msg
+                    )
+                );
             } else {
                 setLikesCount((prev) => prev + 1);
                 setIsLiked(true);
+
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg._id === message._id
+                            ? { ...msg, likes: [...(msg.likes || []), currentUser.id] }
+                            : msg
+                    )
+                );
             }
-            router.refresh();
         } catch (err) {
             console.error("Like toggle failed:", err);
         }
@@ -96,7 +111,9 @@ export default function Message({ message }) {
                 setModalConfig((prev) => ({ ...prev, isOpen: false }));
                 try {
                     await deleteMessageService(message._id);
-                    router.refresh();
+                    
+  
+                    setMessages((prev) => prev.filter((msg) => msg._id !== message._id));
                 } catch (err) {
                     console.error("Delete failed:", err);
                     setModalConfig({
@@ -119,7 +136,6 @@ export default function Message({ message }) {
     const name = message.user?.name || "Anonymous";
     const stampColor = getStampColor(name);
     
-    // ⚡ Logic switch: determine badge/avatar check via user.role property from DB
     const isVerifiedAdmin = message.user?.role === "admin";
 
     return (
