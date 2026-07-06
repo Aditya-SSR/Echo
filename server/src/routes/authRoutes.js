@@ -34,8 +34,9 @@ router.get('/google/callback',
     (req, res) => {
 
         const token = generateToken(req.user);
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
         
-        res.redirect(`http://localhost:3000/auth-callback?token=${token}`);
+        res.redirect(`${frontendUrl}/auth-callback?token=${token}`);
     }
 );
 
