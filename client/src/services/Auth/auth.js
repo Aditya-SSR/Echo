@@ -11,5 +11,6 @@ export async function signup(data){
 } 
 
 export async function googleSignIn() {
-    window.location.href = "http://localhost:8000/users/google";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    window.location.href = `${apiUrl}/users/google`;
 }
