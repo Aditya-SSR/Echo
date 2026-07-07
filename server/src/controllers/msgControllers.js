@@ -2,15 +2,17 @@ const Message = require(`../models/Message.js`);
 
 const getMessage = async (req, res) => {
     try {
-        const Messages = await Message.find()
-            .populate('user', "name role")
+        const messages = await Message.find()
+            .populate('user', 'name role')
             .populate('likes', 'name')
             .sort({ createdAt: -1 });
-        res.status(200).json(Messages);
+            
+        res.status(200).json(messages);
     } catch(err) {
-        res.status(500).json(`Failed to fetch messages!`);
+        console.error("Backend fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch messages!" });
     }
-}
+};
 
 
 const createMessage = async (req, res) => {

@@ -21,6 +21,25 @@ function getStampColor(name) {
     return STAMP_COLORS[code % STAMP_COLORS.length];
 }
 
+
+function formatSystemTimestamp(dateString) {
+    if (!dateString) return "[ TIME LOCK: SECURE ]";
+    try {
+        const date = new Date(dateString);
+        
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = String(date.getFullYear()).slice(-2);
+
+        return `[ ${hours}:${minutes} // ${day}.${month}.${year} ]`;
+    } catch (err) {
+        return "[ SIG_TIME_ERROR ]";
+    }
+}
+
 export default function Message({ message, setMessages }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [likesCount, setLikesCount] = useState(message.likes?.length || 0);
@@ -111,8 +130,6 @@ export default function Message({ message, setMessages }) {
                 setModalConfig((prev) => ({ ...prev, isOpen: false }));
                 try {
                     await deleteMessageService(message._id);
-                    
-  
                     setMessages((prev) => prev.filter((msg) => msg._id !== message._id));
                 } catch (err) {
                     console.error("Delete failed:", err);
@@ -164,9 +181,9 @@ export default function Message({ message, setMessages }) {
                             </div>
                         )}
 
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex flex-col justify-center">
                             <div className="flex items-center gap-1.5">
-                                <h2 className="truncate font-sans text-base font-extrabold leading-tight text-black">
+                                <h2 className="truncate font-sans text-base font-extrabold leading-none text-black">
                                     {name}
                                 </h2>
 
@@ -189,9 +206,17 @@ export default function Message({ message, setMessages }) {
                                     </span>
                                 )}
                             </div>
-                            <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-black/50">
-                                {isVerifiedAdmin ? "Creator / Admin" : "Broadcasting"}
-                            </p>
+                            
+
+                            <div className="flex items-center gap-2 mt-1 select-none">
+                                <p className="font-mono text-[10px] font-black uppercase tracking-wider text-black/40 leading-none">
+                                    {isVerifiedAdmin ? "Creator / Admin" : "Broadcasting"}
+                                </p>
+                                <span className="text-black/20 text-[10px] font-mono font-bold leading-none">•</span>
+                                <p className="font-mono text-[10px] font-bold tracking-widest text-black/40 leading-none uppercase">
+                                    {formatSystemTimestamp(message.createdAt)}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
