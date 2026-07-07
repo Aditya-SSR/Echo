@@ -34,7 +34,7 @@ The interface embraces a **Neo-Brutalist** design language—high contrast, bold
 * Passport Google OAuth 2.0
 * bcrypt
 * dotenv
-* 
+
 ---
 
 # Features
@@ -79,9 +79,4 @@ The interface embraces a **Neo-Brutalist** design language—high contrast, bold
 
 ---
 
-
----
-
-
-
-Feel free to fork the project, contribute, or use it for learning purposes.
+### Echo by LYNX
