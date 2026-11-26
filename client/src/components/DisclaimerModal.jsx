@@ -1,72 +1,77 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCurrentUser } from "../lib/auth";
+
+const RULES = [
+    "Be respectful to the people you talk to.",
+    "No hateful, hostile or spammy posts.",
+    "Keep it a place you'd want to hang out in.",
+];
+
+const noopSubscribe = () => () => {};
+const readSeen = () => sessionStorage.getItem("vibe_checked") === "true";
 
 export default function DisclaimerModal() {
-    const [isOpen, setIsOpen] = useState(false);
+    const user = useCurrentUser();
+    const [dismissed, setDismissed] = useState(false);
+    // sessionStorage doesn't exist during SSR, so the server snapshot says "already seen".
+    const seen = useSyncExternalStore(noopSubscribe, readSeen, () => true);
+
+    const isOpen = !!user && !seen && !dismissed;
 
     useEffect(() => {
-
-        const sessionChecked = sessionStorage.getItem("vibe_checked");
-        const token = localStorage.getItem("token");
-
-        if (token && !sessionChecked) {
-            setIsOpen(true);
-        }
-    }, []);
+        if (!isOpen) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = previous;
+        };
+    }, [isOpen]);
 
     const handleAgree = () => {
-
         sessionStorage.setItem("vibe_checked", "true");
-        setIsOpen(false);
+        setDismissed(true);
     };
 
     if (!isOpen) return null;
 
-return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
-
-        <div 
-            className="w-full max-w-lg bg-[#FAFAF7] border-4 border-black 
-                       shadow-[10px_10px_0px_0px_#000] animate-in fade-in zoom-in-95 duration-150"
-        >
-    
-            <div className="border-b-4 border-black bg-[#FFD23F] p-4 text-center">
-                <h2 className="font-sans text-xl sm:text-2xl font-black uppercase tracking-tight text-black">
-                    TRANSMISSION PROTOCOL
+    return (
+        <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/75 p-4 backdrop-blur-[2px] sm:items-center">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="guidelines-title"
+                className="w-full max-w-md animate-pop-in rounded-2xl border border-line-strong bg-raised p-6 shadow-2xl shadow-black"
+            >
+                <h2 id="guidelines-title" className="text-xl font-semibold tracking-tight text-fg">
+                    Welcome to Echo
                 </h2>
-            </div>
-
-
-            <div className="p-6 space-y-4 font-mono text-sm font-bold text-black leading-relaxed">
-                <p className="border-l-4 border-[#4EA8DE] pl-3 text-black/80">
-                    &gt; Welcome to Echo. This space is built for real-time broadcasting, open channels, and unfiltered ideas.
+                <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                    A simple place to share what’s on your mind. A few ground rules keep it that way:
                 </p>
-                
-     
-                <div className="space-y-2 border-[3px] border-black bg-white p-4 shadow-[4px_4px_0px_0px_#000]">
-                    <p className="text-xs text-black/40 uppercase tracking-widest font-black">Stream Rules:</p>
-                    <p className="text-xs sm:text-sm">&gt; 1. Keep your transmissions respectful to other nodes.</p>
-                    <p className="text-xs sm:text-sm">&gt; 2. Avoid posting hostile or destructive signal noise.</p>
-                    <p className="text-xs sm:text-sm">&gt; 3. Ensure your content keeps the global frequency healthy.</p>
-                </div>
 
-      
-                <p className="text-xs text-center text-black/60 font-black tracking-wide pt-2 uppercase">
-                     Lynx thanks you for using Echo.
-                </p>
-            </div>
+                <ol className="mt-5 space-y-3">
+                    {RULES.map((rule, i) => (
+                        <li key={rule} className="flex items-start gap-3 text-[15px] leading-6 text-fg">
+                            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-xs font-medium tabular-nums text-muted">
+                                {i + 1}
+                            </span>
+                            {rule}
+                        </li>
+                    ))}
+                </ol>
 
-  
-            <div className="p-4 bg-black border-t-4 border-black">
                 <button
+                    type="button"
+                    autoFocus
                     onClick={handleAgree}
-                    className="w-full bg-[#7CE38B] border-[3px] border-black py-3 px-4 font-sans text-base font-black uppercase tracking-wider text-black transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_#fff] active:translate-x-0 active:translate-y-0 active:shadow-none"
+                    className="mt-7 h-11 w-full rounded-full bg-white text-[15px] font-semibold text-black transition-colors hover:bg-white/85"
                 >
-                    I UNDERSTOOD
+                    I understand
                 </button>
+                <p className="mt-4 text-center text-xs text-faint">Echo by Lynx</p>
             </div>
         </div>
-    </div>
-);
+    );
 }

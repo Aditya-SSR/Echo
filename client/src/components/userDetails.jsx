@@ -1,94 +1,71 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-
-const STAMP_COLORS = [
-    "#FF5D5D", 
-    "#FFD23F", 
-    "#4EA8DE", 
-    "#7CE38B", 
-    "#C77DFF", 
-    "#FF9F1C", 
-];
-
-function getStampColor(name) {
-    const initial = (name || "?").trim().charAt(0).toUpperCase();
-    const code = initial.charCodeAt(0) || 0;
-    return STAMP_COLORS[code % STAMP_COLORS.length];
-}
+import Avatar from "./Avatar.jsx";
 
 export default function UserDetails({ user, onLogout }) {
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const dropdownRef = useRef(null);
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
 
     useEffect(() => {
-        function handleClickOutside(event) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setDropdownOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        if (!open) return;
+        const onPointerDown = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        const onKey = (e) => {
+            if (e.key === "Escape") setOpen(false);
+        };
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [open]);
 
     const name = user?.name || "User";
     const email = user?.email || "";
-    
-
-    const isAdminUser = user?.role === "admin";
-    const stampColor = getStampColor(name);
+    const isAdmin = user?.role === "admin";
 
     return (
-        <div className="relative flex items-center gap-3" ref={dropdownRef}>
-            <span 
-                className="hidden md:inline font-mono text-xs sm:text-sm font-black uppercase tracking-tight text-black border-[3px] border-black bg-[#FAFAF7] px-2.5 py-1 shadow-[3px_3px_0px_0px_#fff]"
-                style={{ outlineColor: stampColor }}
-            >
-                {name}
-            </span>
-
+        <div className="relative" ref={ref}>
             <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-black transition-all duration-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_#fff] focus:outline-none overflow-hidden"
-                style={{ backgroundColor: stampColor }}
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-label="Account menu"
+                className="flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-black transition hover:ring-2 hover:ring-line-strong"
             >
-                {isAdminUser ? (
-                    <img 
-                        src="/Lynxx.png" 
-                        alt={name} 
-                        className="h-full w-full object-cover"
-                    />
-                ) : (
-                    <span className="font-sans text-base font-black text-black">
-                        {name.charAt(0).toUpperCase()}
-                    </span>
-                )}
+                <Avatar name={name} admin={isAdmin} size={36} />
             </button>
 
-            {dropdownOpen && (
-                <div 
-                    className="absolute right-0 top-12 w-64 bg-[#FAFAF7] border-[3px] border-black p-4 
-                               shadow-[6px_6px_0px_0px_#fff] animate-in fade-in zoom-in-95 duration-100 z-50"
+            {open && (
+                <div
+                    role="menu"
+                    className="absolute right-0 top-11 z-50 w-64 animate-pop-in rounded-xl border border-line-strong bg-raised p-1.5 shadow-2xl shadow-black"
                 >
-                    <div className="mb-4 border-b-[3px] border-dashed border-black/20 pb-3">
-                        <p className="font-mono text-[10px] font-black uppercase tracking-wider text-black/40">
-                            CLUSTER NODE ID ({user?.role || "USER"})
-                        </p>
-                        <p className="mt-1 font-sans text-base font-black text-black truncate">
-                            {name}
-                        </p>
-                        {email && (
-                            <p className="font-mono text-xs font-medium text-black/60 truncate mt-0.5">
-                                {email}
-                            </p>
-                        )}
+                    <div className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-fg">{name}</p>
+                            {isAdmin && (
+                                <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
+                                    Admin
+                                </span>
+                            )}
+                        </div>
+                        {email && <p className="mt-0.5 truncate text-[13px] text-muted">{email}</p>}
                     </div>
 
+                    <div className="my-1 h-px bg-line" />
+
                     <button
+                        type="button"
+                        role="menuitem"
                         onClick={onLogout}
-                        className="w-full border-[3px] border-black bg-[#FF5D5D] py-2 text-center font-mono text-xs font-black uppercase tracking-wider text-black transition-colors hover:bg-[#FF3B3B] active:translate-x-0.5 active:translate-y-0.5"
+                        className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-fg transition-colors hover:bg-white/8"
                     >
-                        TERMINATE SESSION
+                        Log out
                     </button>
                 </div>
             )}

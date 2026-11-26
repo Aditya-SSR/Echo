@@ -1,74 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { jwtDecode } from "jwt-decode";
 import { toggleLikeMessageService, deleteMessageService } from "../services/Messages/messages";
-import BrutalistModal from "./BrutalistModal";
+import { useCurrentUser } from "../lib/auth";
+import { timeAgo, fullDate } from "../lib/time";
+import Avatar from "./Avatar.jsx";
+import ConfirmModal from "./ConfirmModal.jsx";
 
-const STAMP_COLORS = [
-    "#FF5D5D", 
-    "#FFD23F", 
-    "#4EA8DE", 
-    "#7CE38B", 
-    "#C77DFF", 
-    "#FF9F1C", 
-];
+// Likes arrive from the API as { _id, name } objects, but we add plain ids locally.
+const likeId = (like) => like?._id ?? like;
 
-function getStampColor(name) {
-    const initial = (name || "?").trim().charAt(0).toUpperCase();
-    const code = initial.charCodeAt(0) || 0;
-    return STAMP_COLORS[code % STAMP_COLORS.length];
-}
-
-
-function formatSystemTimestamp(dateString) {
-    if (!dateString) return "[ TIME LOCK: SECURE ]";
-    try {
-        const date = new Date(dateString);
-        
-        const hours = String(date.getHours()).padStart(2, "0");
-        const minutes = String(date.getMinutes()).padStart(2, "0");
-        
-        const day = String(date.getDate()).padStart(2, "0");
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const year = String(date.getFullYear()).slice(-2);
-
-        return `[ ${hours}:${minutes} // ${day}.${month}.${year} ]`;
-    } catch (err) {
-        return "[ SIG_TIME_ERROR ]";
-    }
-}
+const CLOSED_MODAL = { isOpen: false, title: "", message: "", confirmText: "", cancelText: "", destructive: false, onConfirm: null };
 
 export default function Message({ message, setMessages }) {
-    const [currentUser, setCurrentUser] = useState(null);
-    const [likesCount, setLikesCount] = useState(message.likes?.length || 0);
-    const [isLiked, setIsLiked] = useState(false);
-    const [modalConfig, setModalConfig] = useState({ 
-        isOpen: false, title: "", message: "", confirmText: "", cancelText: "", onConfirm: null 
-    });
-
+    const currentUser = useCurrentUser();
     const router = useRouter();
+    const [modal, setModal] = useState(CLOSED_MODAL);
 
-    useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (token) {
-            try {
-                const decoded = jwtDecode(token);
-                setCurrentUser(decoded);
+    const closeModal = () => setModal((prev) => ({ ...prev, isOpen: false }));
 
-                if (message.likes && decoded.id) {
-                    const alreadyLiked = message.likes.some((likeObj) => {
-                        const likeId = likeObj._id || likeObj;
-                        return likeId === decoded.id;
-                    });
-                    setIsLiked(alreadyLiked);
-                }
-            } catch (err) {
-                console.error("Token decoding error", err);
-            }
-        }
-    }, [message.likes]);
+    const likes = message.likes || [];
+    const likesCount = likes.length;
+    const isLiked = !!currentUser && likes.some((like) => likeId(like) === currentUser.id);
+
+    const author = message.user;
+    const name = author?.name || "Anonymous";
+    const isVerifiedAdmin = author?.role === "admin";
+    const isOwner = !!currentUser && author?._id === currentUser.id;
+    const canDelete = isOwner || currentUser?.role === "admin";
+
+    const patchLikes = (update) =>
+        setMessages((prev) =>
+            prev.map((m) => (m._id === message._id ? { ...m, likes: update(m.likes || []) } : m))
+        );
 
     const handleLike = async () => {
         if (!currentUser) {
@@ -76,217 +41,146 @@ export default function Message({ message, setMessages }) {
             return;
         }
 
-        if (message.user?._id === currentUser.id) {
-            setModalConfig({
+        if (isOwner) {
+            setModal({
+                ...CLOSED_MODAL,
                 isOpen: true,
-                title: "ACTION DENIED",
-                message: "You cannot like your own broadcasted post!",
-                confirmText: "MY BAD",
-                cancelText: "CLOSE",
-                onConfirm: () => setModalConfig((prev) => ({ ...prev, isOpen: false }))
+                title: "You can't like your own echo",
+                message: "Save the likes for other people's posts.",
+                confirmText: "Got it",
+                cancelText: "",
+                onConfirm: closeModal,
             });
             return;
         }
 
+        // Optimistic update, rolled back if the request fails.
+        const me = currentUser.id;
+        const wasLiked = isLiked;
+        patchLikes((ls) => (wasLiked ? ls.filter((l) => likeId(l) !== me) : [...ls, me]));
+
         try {
             await toggleLikeMessageService(message._id);
-
-            if (isLiked) {
-                setLikesCount((prev) => Math.max(0, prev - 1));
-                setIsLiked(false);
-
-                setMessages((prev) =>
-                    prev.map((msg) =>
-                        msg._id === message._id
-                            ? { ...msg, likes: msg.likes.filter((id) => id !== currentUser.id) }
-                            : msg
-                    )
-                );
-            } else {
-                setLikesCount((prev) => prev + 1);
-                setIsLiked(true);
-
-                setMessages((prev) =>
-                    prev.map((msg) =>
-                        msg._id === message._id
-                            ? { ...msg, likes: [...(msg.likes || []), currentUser.id] }
-                            : msg
-                    )
-                );
-            }
         } catch (err) {
             console.error("Like toggle failed:", err);
+            patchLikes((ls) => (wasLiked ? [...ls, me] : ls.filter((l) => likeId(l) !== me)));
         }
     };
 
-    const handleDelete = async () => {
-        setModalConfig({
+    const handleDelete = () => {
+        setModal({
+            ...CLOSED_MODAL,
             isOpen: true,
-            title: "DELETE PROMPT",
-            message: "Are you sure you want to permanently delete this message snippet from the server cluster?",
-            confirmText: "DELETE IT",
-            cancelText: "GO BACK",
+            title: "Delete this echo?",
+            message: "This permanently removes the post. You can't undo it.",
+            confirmText: "Delete",
+            cancelText: "Cancel",
+            destructive: true,
             onConfirm: async () => {
-                setModalConfig((prev) => ({ ...prev, isOpen: false }));
+                closeModal();
                 try {
                     await deleteMessageService(message._id);
-                    setMessages((prev) => prev.filter((msg) => msg._id !== message._id));
+                    setMessages((prev) => prev.filter((m) => m._id !== message._id));
                 } catch (err) {
                     console.error("Delete failed:", err);
-                    setModalConfig({
+                    setModal({
+                        ...CLOSED_MODAL,
                         isOpen: true,
-                        title: "ERROR OCCURRED",
-                        message: "Could not drop message from the server backend grid.",
-                        confirmText: "UNDERSTOOD",
-                        cancelText: "DISMISS",
-                        onConfirm: () => setModalConfig((prev) => ({ ...prev, isOpen: false }))
+                        title: "Couldn't delete the echo",
+                        message: "Something went wrong on the server. Please try again.",
+                        confirmText: "OK",
+                        cancelText: "",
+                        onConfirm: closeModal,
                     });
                 }
-            }
+            },
         });
     };
 
-    const isOwner = currentUser && message.user?._id === currentUser.id;
-    const isAdmin = currentUser && currentUser.role === "admin";
-    const canDelete = isOwner || isAdmin;
-
-    const name = message.user?.name || "Anonymous";
-    const stampColor = getStampColor(name);
-    
-    const isVerifiedAdmin = message.user?.role === "admin";
-
     return (
         <>
-            <div
-                className="group w-full max-w-2xl mx-auto bg-[#FAFAF7] border-[3px] border-black
-                           shadow-[6px_6px_0px_0px_#000] transition-all duration-150
-                           hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[8px_8px_0px_0px_#000]"
-            >
-                <div className="flex items-center justify-between gap-3 p-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                        
-                        {isVerifiedAdmin ? (
-                            <img 
-                                src="/Lynxx.png"    
-                                alt={name}
-                                className="h-11 w-11 shrink-0 border-[3px] border-black object-cover bg-[#FFD23F]"
-                            />
-                        ) : (
-                            <div
-                                className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-black
-                                           font-sans text-lg font-black text-black"
-                                style={{ backgroundColor: stampColor }}
+            <article className="flex gap-3 border-b border-line px-4 py-4 transition-colors hover:bg-white/[0.02]">
+                <Avatar name={name} admin={isVerifiedAdmin} size={40} />
+
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        <h2 className="truncate text-[15px] font-semibold leading-5 text-fg">{name}</h2>
+
+                        {isVerifiedAdmin && (
+                            <span
+                                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-black"
+                                title="Verified admin"
                             >
-                                {name.charAt(0).toUpperCase()}
-                            </div>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} className="h-2.5 w-2.5" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="sr-only">Verified admin</span>
+                            </span>
                         )}
 
-                        <div className="min-w-0 flex flex-col justify-center">
-                            <div className="flex items-center gap-1.5">
-                                <h2 className="truncate font-sans text-base font-extrabold leading-none text-black">
-                                    {name}
-                                </h2>
-
-                                {isVerifiedAdmin && (
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#4EA8DE] text-white" title="Verified Admin">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth={4}
-                                            className="h-2.5 w-2.5"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                d="M5 13l4 4L19 7"
-                                            />
-                                        </svg>
-                                    </span>
-                                )}
-                            </div>
-                            
-
-                            <div className="flex items-center gap-2 mt-1 select-none">
-                                <p className="font-mono text-[10px] font-black uppercase tracking-wider text-black/40 leading-none">
-                                    {isVerifiedAdmin ? "Creator / Admin" : "Broadcasting"}
-                                </p>
-                                <span className="text-black/20 text-[10px] font-mono font-bold leading-none">•</span>
-                                <p className="font-mono text-[10px] font-bold tracking-widest text-black/40 leading-none uppercase">
-                                    {formatSystemTimestamp(message.createdAt)}
-                                </p>
-                            </div>
-                        </div>
+                        <span className="text-sm text-faint" aria-hidden="true">·</span>
+                        <time
+                            dateTime={message.createdAt}
+                            title={fullDate(message.createdAt)}
+                            className="text-sm leading-5 text-muted"
+                        >
+                            {timeAgo(message.createdAt)}
+                        </time>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <p className="mt-1 whitespace-pre-wrap wrap-break-word text-[15px] leading-6 text-fg/90">
+                        {message.content}
+                    </p>
+
+                    <div className="-ml-2 mt-2 flex items-center gap-1">
                         <button
+                            type="button"
                             onClick={handleLike}
                             aria-pressed={isLiked}
-                            className={`flex items-center gap-1.5 border-[3px] border-black px-2.5 py-1.5
-                                        font-mono text-xs font-bold transition-colors
-                                        ${isLiked ? "bg-[#FF3B3B] text-black" : "bg-white text-black hover:bg-black hover:text-white"}`}
+                            aria-label={isLiked ? "Unlike" : "Like"}
+                            className={`group inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-[13px] transition-colors ${
+                                isLiked ? "text-like" : "text-muted hover:bg-like/10 hover:text-like"
+                            }`}
                         >
                             <svg
-                                xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 24 24"
                                 fill={isLiked ? "currentColor" : "none"}
                                 stroke="currentColor"
-                                strokeWidth={2.5}
-                                className="h-4 w-4 transition-transform active:scale-125"
+                                strokeWidth={2}
+                                className="h-[18px] w-[18px] transition-transform group-active:scale-125"
+                                aria-hidden="true"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                                />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                             </svg>
-                            <span>{likesCount}</span>
+                            {likesCount > 0 && <span className="tabular-nums">{likesCount}</span>}
                         </button>
 
                         {canDelete && (
                             <button
+                                type="button"
                                 onClick={handleDelete}
-                                title="Delete Echo"
-                                className="flex h-8.5 w-8.5 items-center justify-center border-[3px] border-black
-                                           bg-white text-black transition-colors hover:bg-[#FF3B3B]"
+                                title="Delete echo"
+                                aria-label="Delete echo"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger/10 hover:text-danger"
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={2.5}
-                                    stroke="currentColor"
-                                    className="h-4 w-4"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-[18px] w-[18px]" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
                         )}
                     </div>
                 </div>
+            </article>
 
-                <div className="border-t-[3px] border-dashed border-black/20" />
-
-                <p className="p-4 font-mono text-[15px] sm:text-base font-medium leading-relaxed tracking-tight text-black wrap-break-word">
-                    <span className="text-black/30 mr-1">&gt;</span>
-                    {message.content}
-                </p>
-            </div>
-
-            <BrutalistModal 
-                isOpen={modalConfig.isOpen}
-                title={modalConfig.title}
-                message={modalConfig.message}
-                confirmText={modalConfig.confirmText}
-                cancelText={modalConfig.cancelText}
-                onConfirm={modalConfig.onConfirm}
-                onCancel={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+            <ConfirmModal
+                isOpen={modal.isOpen}
+                title={modal.title}
+                message={modal.message}
+                confirmText={modal.confirmText}
+                cancelText={modal.cancelText}
+                destructive={modal.destructive}
+                onConfirm={modal.onConfirm}
+                onCancel={closeModal}
             />
         </>
     );

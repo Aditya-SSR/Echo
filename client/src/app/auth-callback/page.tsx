@@ -3,6 +3,18 @@
 import { useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { exchangeGoogleCode } from "../../services/Auth/auth.js";
+import { saveToken } from "../../lib/auth.js";
+
+function Status({ text }: { text: string }) {
+    return (
+        <main className="flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center gap-4 px-6 text-center">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-line-strong border-t-fg" aria-hidden="true" />
+            <p role="status" className="text-[15px] text-muted">
+                {text}
+            </p>
+        </main>
+    );
+}
 
 function TokenHandler() {
     const router = useRouter();
@@ -25,48 +37,19 @@ function TokenHandler() {
         exchangeGoogleCode(code)
             .then((data: { token?: string }) => {
                 if (!data?.token) throw new Error("No token returned");
-                localStorage.setItem("token", data.token);
+                saveToken(data.token);
                 window.location.replace("/");
             })
             .catch(() => router.push("/signin"));
     }, [searchParams, router]);
 
-    return (
-        <div className="w-full max-w-md bg-[#FAFAF7] border-[3px] border-black p-6 shadow-[8px_8px_0px_0px_#000]">
-
-            <div className="mb-4 inline-block bg-[#FFD23F] border-2 border-black px-2.5 py-0.5 font-mono text-[10px] font-black uppercase tracking-wider text-black animate-pulse">
-                INITIALIZING HANDSHAKE
-            </div>
-
-            <h1 className="font-sans text-xl sm:text-2xl font-black uppercase tracking-tight text-black leading-none">
-                Authenticating with Google
-            </h1>
-            
-     
-            <div className="my-4 border-t-[3px] border-dashed border-black/20" />
-
-            <div className="flex items-center gap-3 bg-black p-3 text-left font-mono text-xs text-[#7CE38B]">
-                <span className="text-white/30 shrink-0">&gt;</span>
-                <p className="truncate animate-pulse">
-                    Syncing matrix tokens with server node cluster...
-                </p>
-            </div>
-        </div>
-    );
+    return <Status text="Signing you in with Google…" />;
 }
 
 export default function AuthCallback() {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-white p-6">
-            <Suspense 
-                fallback={
-                    <div className="bg-[#FAFAF7] border-[3px] border-black p-6 font-mono text-xs font-black text-black shadow-[6px_6px_0px_0px_#000] uppercase tracking-widest animate-pulse">
-                        &gt; Fetching Client Manifest...
-                    </div>
-                }
-            >
-                <TokenHandler />
-            </Suspense>
-        </main>
+        <Suspense fallback={<Status text="Loading…" />}>
+            <TokenHandler />
+        </Suspense>
     );
 }
