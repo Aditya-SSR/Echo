@@ -1,21 +1,34 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { exchangeGoogleCode } from "../../services/Auth/auth.js";
 
 function TokenHandler() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    useEffect(() => {
-        const token = searchParams.get("token");
+    // The code is single-use, so make sure the exchange only runs once
+    // (React dev mode runs effects twice).
+    const started = useRef(false);
 
-        if (token) {
-            localStorage.setItem("token", token);
-            window.location.href = "/";
-        } else {
+    useEffect(() => {
+        if (started.current) return;
+        started.current = true;
+
+        const code = searchParams.get("code");
+        if (!code) {
             router.push("/signin");
+            return;
         }
+
+        exchangeGoogleCode(code)
+            .then((data: { token?: string }) => {
+                if (!data?.token) throw new Error("No token returned");
+                localStorage.setItem("token", data.token);
+                window.location.replace("/");
+            })
+            .catch(() => router.push("/signin"));
     }, [searchParams, router]);
 
     return (

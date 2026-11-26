@@ -4,7 +4,8 @@ const messageSchema = new mongoose.Schema({
     content : {
         type : String,
         required : [true, "Message cannot be empty"],
-        trim : true
+        trim : true,
+        maxlength : [280, "Message is too long (max 280 characters)"]
     },
 
     user : {

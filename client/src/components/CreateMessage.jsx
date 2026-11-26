@@ -56,6 +56,7 @@ export default function CreateMessage({ setMessages }) {
                             value={text}
                             onChange={(e) => setText(e.target.value)}
                             disabled={loading}
+                            maxLength={280}
                             className="w-full border-[3px] border-black bg-white px-4 py-3 font-mono text-sm text-black
                                        placeholder:text-black/40 outline-none transition-all
                                        focus:shadow-[4px_4px_0px_0px_#000] focus:-translate-x-0.5 focus:-translate-y-0.5

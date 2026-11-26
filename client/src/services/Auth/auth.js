@@ -10,6 +10,11 @@ export async function signup(data){
     return response.data;
 } 
 
+export async function exchangeGoogleCode(code) {
+    const response = await api.post("/users/google/exchange", { code });
+    return response.data;
+}
+
 export async function googleSignIn() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     window.location.href = `${apiUrl}/users/google`;

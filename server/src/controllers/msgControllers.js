@@ -1,4 +1,6 @@
+const mongoose = require(`mongoose`);
 const Message = require(`../models/Message.js`);
+const { validateMessageContent } = require(`../utils/validate.js`);
 
 const getMessage = async (req, res) => {
     try {
@@ -6,87 +8,97 @@ const getMessage = async (req, res) => {
             .populate('user', 'name role')
             .populate('likes', 'name')
             .sort({ createdAt: -1 });
-            
+
         res.status(200).json(messages);
     } catch(err) {
         console.error("Backend fetch error:", err);
-        res.status(500).json({ error: "Failed to fetch messages!" });
+        res.status(500).json({ message: "Failed to fetch messages!" });
     }
 };
 
 
 const createMessage = async (req, res) => {
     try{
-        const {content} = req.body;
-        
+        const content = req.body?.content;
+
+        const problem = validateMessageContent(content);
+        if(problem){
+            return res.status(400).json({ message : problem });
+        }
+
         const newMsg = await Message.create({
-            content, 
+            content,
             user : req.user._id
-        })
+        });
 
-        res.status(200).json(`Msg created Successfully!`);
+        // Return the real, populated message so the client can drop it
+        // straight into the feed (same shape as GET /messages items).
+        await newMsg.populate('user', 'name role');
 
+        res.status(201).json(newMsg);
 
     }catch(err){
-        res.status(400).json(`Creating message failed! error ${err}`);
+        console.error(`Creating message failed:`, err);
+        res.status(500).json({ message : `Creating message failed!` });
     }
 }
 
 const deleteMessage = async (req, res) => {
     try {
+        if(!mongoose.isValidObjectId(req.params.id)){
+            return res.status(404).json({ message : "Message not found!" });
+        }
 
         const message = await Message.findById(req.params.id);
 
-
         if (!message) {
-            return res.status(404).json("Message not found!");
+            return res.status(404).json({ message : "Message not found!" });
         }
 
         const isOwner = message.user.toString() === req.user._id.toString();
         const isAdmin = req.user.role === "admin";
 
-
         if (!isOwner && !isAdmin) {
-            return res.status(403).json("You do not have the permission to delete the message!");
+            return res.status(403).json({ message : "You do not have the permission to delete the message!" });
         }
 
         await Message.findByIdAndDelete(req.params.id);
-        
-        const successMessage = isAdmin && !isOwner 
-            ? "Post deleted by Creator/Admin successfully!" 
+
+        const successMessage = isAdmin && !isOwner
+            ? "Post deleted by Creator/Admin successfully!"
             : "Your post was deleted successfully!";
 
-        res.status(200).json(successMessage);
+        res.status(200).json({ message : successMessage });
 
     } catch (err) {
-        res.status(500).json(`Deleting message failed!! error : ${err.message}`);
+        console.error(`Deleting message failed:`, err);
+        res.status(500).json({ message : `Deleting message failed!` });
     }
 };
 
 const toggleLikeMessage = async(req, res) => {
     try{
+        if(!mongoose.isValidObjectId(req.params.id)){
+            return res.status(404).json({ message : `Message not found!` });
+        }
+
         const message = await Message.findById(req.params.id);
-        if(!message) return res.status(404).json(`Message not found!`);
+        if(!message) return res.status(404).json({ message : `Message not found!` });
 
         const hasLiked = message.likes.includes(req.user._id);
 
         if(!hasLiked){
             await Message.findByIdAndUpdate(req.params.id, { $addToSet: { likes: req.user._id } });
-            res.status(200).json(`Message Liked!`);
+            res.status(200).json({ message : `Message Liked!` });
         }else{
             await Message.findByIdAndUpdate(req.params.id, { $pull: { likes: req.user._id } });
-            res.status(200).json("Message unliked!");
+            res.status(200).json({ message : "Message unliked!" });
         }
 
-
-
     }catch(err){
-        res.status(500).json(`Failed to like message. Error : ${err}`);
+        console.error(`Like toggle failed:`, err);
+        res.status(500).json({ message : `Failed to like message.` });
     }
 }
-
-
-
-
 
 module.exports = {createMessage, getMessage, deleteMessage, toggleLikeMessage};

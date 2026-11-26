@@ -21,7 +21,7 @@ export default function SignIn() {
             localStorage.setItem("token", data.token);
             router.push("/");
         } catch (err) {
-            setError(err.response?.data?.message || "Invalid credentials");
+            setError(err.response ? (err.response.data?.message || "Invalid credentials") : "Could not reach the server. It may be waking up - try again in a moment.");
         } finally {
             setLoading(false);
         }

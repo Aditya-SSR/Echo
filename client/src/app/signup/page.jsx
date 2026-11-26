@@ -22,7 +22,7 @@ export default function SignUp() {
             localStorage.setItem("token", data.token);
             router.push("/");
         } catch (err) {
-            setError(err.response?.data?.message || "Registration failed. Try again.");
+            setError(err.response ? (err.response.data?.message || "Registration failed. Try again.") : "Could not reach the server. It may be waking up - try again in a moment.");
         } finally {
             setLoading(false);
         }
@@ -57,6 +57,7 @@ export default function SignUp() {
                         placeholder="Adithya SSR"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
+                        maxLength={50}
                         className="mb-4 w-full border-[3px] border-black bg-white p-3 font-mono text-sm text-black outline-none transition-all placeholder:text-black/30 focus:shadow-[4px_4px_0px_0px_#000] focus:-translate-x-0.5 focus:-translate-y-0.5"
                         required
                     />
@@ -81,6 +82,8 @@ export default function SignUp() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        minLength={8}
+                        maxLength={72}
                         className="mb-6 w-full border-[3px] border-black bg-white p-3 font-mono text-sm text-black outline-none transition-all placeholder:text-black/30 focus:shadow-[4px_4px_0px_0px_#000] focus:-translate-x-0.5 focus:-translate-y-0.5"
                         required
                     />

@@ -1,44 +1,45 @@
 const express = require(`express`);
 const router = express.Router();
 const passport = require(`passport`);
-const jwt = require(`jsonwebtoken`);
+const rateLimit = require(`express-rate-limit`);
 
-const {registerUser, loginUser, getUsers} = require(`../controllers/authControllers.js`);
+const {registerUser, loginUser, getUsers, exchangeGoogleCode} = require(`../controllers/authControllers.js`);
+const {protect, adminOnly} = require(`../middlewares/authMiddleware.js`);
+const {createAuthCode} = require(`../utils/token.js`);
+const {googleEnabled} = require(`../config/passport.js`);
 
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
-const generateToken = (user) => {
-    return jwt.sign(
-        { 
-            id: user._id, 
-            name: user.name,
-            email: user.email,
-            role: user.role
-        }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '7d' }
+// Brute-force protection for everything that can mint a token.
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: `Too many attempts. Please try again in a few minutes.` }
+});
+
+router.post("/register", authLimiter, registerUser);
+router.post("/login", authLimiter, loginUser);
+router.get("/", protect, adminOnly, getUsers);
+
+if (googleEnabled) {
+    router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+
+    router.get('/google/callback',
+        passport.authenticate('google', { failureRedirect: `${frontendUrl}/signin`, session: false }),
+        (req, res) => {
+            // Never put the JWT in the URL - hand over a one-time code instead.
+            const code = createAuthCode(req.user._id);
+            res.redirect(`${frontendUrl}/auth-callback?code=${code}`);
+        }
     );
-};
+} else {
+    router.get('/google', (req, res) => {
+        res.status(503).json({ message : `Google sign-in is not configured on this server` });
+    });
+}
 
-
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.get("/", getUsers);
-
-
-
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
-
-
-router.get('/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login', session: false }),
-    (req, res) => {
-
-        const token = generateToken(req.user);
-        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-        
-        res.redirect(`${frontendUrl}/auth-callback?token=${token}`);
-    }
-);
-
+router.post('/google/exchange', authLimiter, exchangeGoogleCode);
 
 module.exports = router;

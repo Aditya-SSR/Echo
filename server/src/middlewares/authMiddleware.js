@@ -2,27 +2,34 @@ const jwt = require(`jsonwebtoken`);
 const User = require(`../models/User.js`);
 
 async function protect(req, res, next){
-    let token;
+    const header = req.headers.authorization;
 
-    if(req.headers.authorization && req.headers.authorization.startsWith(`Bearer`)){
-        try{
+    if(!header || !header.startsWith(`Bearer `)){
+        return res.status(401).json({ message : `Not authorised, no token provided` });
+    }
 
-            token = req.headers.authorization.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    try{
+        const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).select('-password');
 
-            req.user = await User.findById(decoded.id).select('-password');
-
-
-            next();
-        }catch(err){
-            console.error(err);
-            return res.status(401).json(`User authentiacation failed, token not authorised`);
+        // Token is valid but the account no longer exists.
+        if(!user){
+            return res.status(401).json({ message : `Not authorised, user no longer exists` });
         }
+
+        req.user = user;
+    }catch(err){
+        return res.status(401).json({ message : `Not authorised, token invalid or expired` });
     }
 
-    if(!token){
-        res.status(401).json(`NOT AUTHORISED, NO TOKEN FOUND IN HEADERS`);
-    }
+    next();
 }
 
-module.exports = {protect};
+function adminOnly(req, res, next){
+    if(req.user && req.user.role === `admin`){
+        return next();
+    }
+    return res.status(403).json({ message : `Admin access required` });
+}
+
+module.exports = {protect, adminOnly};
