@@ -21,12 +21,14 @@ The interface embraces a **Neo-Brutalist** design language—high contrast, bold
 * TypeScript
 * Tailwind CSS
 * Axios
+* Socket.IO Client
 * JWT Decode
 
 ## Backend
 
 * Node.js
 * Express.js
+* Socket.IO
 * MongoDB
 * Mongoose
 * JSON Web Token (JWT)
@@ -55,6 +57,12 @@ The interface embraces a **Neo-Brutalist** design language—high contrast, bold
 * Delete Your Own Posts
 * User Information Displayed with Every Post
 * RESTful API Integration
+
+## Real-time (WebSockets)
+
+* New posts, likes and deletions appear instantly for everyone (Socket.IO, no polling)
+* Live "is typing" indicator
+* Automatically reconnects and catches up if the connection drops
 
 ## Interactions
 

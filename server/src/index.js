@@ -8,6 +8,7 @@ if (missing.length) {
     process.exit(1);
 }
 
+const http = require(`http`);
 const express = require(`express`);
 const app = express();
 app.set("trust proxy", 1);
@@ -22,6 +23,7 @@ const connectDB = require(`./config/db.js`);
 const userRoutes = require(`./routes/authRoutes.js`);
 const msgRoutes = require(`./routes/msgRoutes.js`);
 const requestLogger = require(`./middlewares/logger.js`);
+const { initSockets } = require(`./sockets/index.js`);
 
 const allowedOrigins = [
     'http://localhost:3000',
@@ -30,6 +32,11 @@ const allowedOrigins = [
     // Extra allowed origins, comma-separated (e.g. a Vercel domain or a mobile WebView origin)
     ...(process.env.ALLOWED_ORIGINS || ``).split(`,`).map((o) => o.trim().replace(/\/$/, ``))
 ].filter(Boolean);
+
+// Socket.IO shares the HTTP server (and port) with Express.
+const server = http.createServer(app);
+const io = initSockets(server, allowedOrigins);
+app.set(`io`, io);
 
 app.use(helmet());
 app.use(cors({
@@ -74,6 +81,6 @@ connectDB();
 // 8000 matches the client's default API URL. (6000 is also a port browsers block.)
 const PORT = process.env.PORT || 8000
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is listening on ${PORT}`);
 })

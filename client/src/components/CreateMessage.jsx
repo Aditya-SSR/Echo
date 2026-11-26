@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createMessageService } from "../services/Messages/messages";
 import { useCurrentUser } from "../lib/auth";
+import { getSocket } from "../lib/socket";
 import Avatar from "./Avatar.jsx";
 
 const MAX_LENGTH = 280;
@@ -14,6 +15,43 @@ export default function CreateMessage({ setMessages }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const textareaRef = useRef(null);
+    const typing = useRef({ active: false, lastSent: 0, timer: null });
+
+    // Tell the server we stopped typing (idle, blurred, posted, or left the page).
+    const stopTyping = useCallback(() => {
+        const t = typing.current;
+        clearTimeout(t.timer);
+        if (t.active) {
+            t.active = false;
+            getSocket().emit("typing:stop");
+        }
+    }, []);
+
+    useEffect(() => stopTyping, [stopTyping]);
+
+    const handleChange = (e) => {
+        const value = e.target.value;
+        setText(value);
+
+        if (!value.trim()) {
+            stopTyping();
+            return;
+        }
+
+        const socket = getSocket();
+        if (!socket.connected) return;
+
+        // Re-send every ~2s while typing; the server drops us after 5s of silence.
+        const t = typing.current;
+        const now = Date.now();
+        if (!t.active || now - t.lastSent > 2000) {
+            socket.emit("typing:start");
+            t.active = true;
+            t.lastSent = now;
+        }
+        clearTimeout(t.timer);
+        t.timer = setTimeout(stopTyping, 3000);
+    };
 
     // Grow the textarea with its content.
     useEffect(() => {
@@ -26,13 +64,15 @@ export default function CreateMessage({ setMessages }) {
     const submit = async () => {
         if (!text.trim() || loading) return;
 
+        stopTyping();
         setLoading(true);
         setError("");
         try {
             const created = await createMessageService(text);
             setText("");
             if (created && created._id) {
-                setMessages((prev) => [created, ...prev]);
+                // The live "message:new" event may have added it already.
+                setMessages((prev) => (prev.some((m) => m._id === created._id) ? prev : [created, ...prev]));
             }
         } catch (err) {
             console.error("Failed to post message:", err);
@@ -81,7 +121,8 @@ export default function CreateMessage({ setMessages }) {
                     ref={textareaRef}
                     rows={1}
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={handleChange}
+                    onBlur={stopTyping}
                     onKeyDown={handleKeyDown}
                     disabled={loading}
                     maxLength={MAX_LENGTH}

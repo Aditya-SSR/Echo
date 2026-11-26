@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Message from "../components/Message";
 import CreateMessage from "../components/CreateMessage";
 import { getMessages } from "../services/Messages/messages.js";
-import AutoRefresh from "../components/AutoRefresh.jsx";
 import DisclaimerModal from "../components/DisclaimerModal.jsx";
 import FeedSkeleton from "../components/FeedSkeleton.jsx";
+import TypingIndicator from "../components/TypingIndicator.jsx";
+import LiveStatus from "../components/LiveStatus.jsx";
+import { getSocket } from "../lib/socket.js";
+import { useCurrentUser } from "../lib/auth.js";
 
 type Echo = {
     _id: string;
@@ -21,7 +24,10 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
-    const fetchMessages = async () => {
+    const user = useCurrentUser();
+    const userId = (user as { id?: string } | null)?.id ?? null;
+
+    const fetchMessages = useCallback(async () => {
         try {
             const data = await getMessages();
             setMessages(Array.isArray(data) ? data : []);
@@ -32,13 +38,46 @@ export default function Home() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         // Initial data load on mount.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchMessages();
-    }, []);
+    }, [fetchMessages]);
+
+    // Live updates over a WebSocket. Reconnects when the signed-in user changes
+    // so the server knows who is typing.
+    useEffect(() => {
+        const socket = getSocket();
+        let firstConnect = true;
+
+        // After a dropped connection we may have missed events, so reload once.
+        const onConnect = () => {
+            if (!firstConnect) fetchMessages();
+            firstConnect = false;
+        };
+        const onNew = (msg: Echo) =>
+            setMessages((prev) => (prev.some((m) => m._id === msg._id) ? prev : [msg, ...prev]));
+        const onDeleted = ({ id }: { id: string }) =>
+            setMessages((prev) => prev.filter((m) => m._id !== id));
+        const onLikes = ({ id, likes }: { id: string; likes: unknown[] }) =>
+            setMessages((prev) => prev.map((m) => (m._id === id ? { ...m, likes } : m)));
+
+        socket.on("connect", onConnect);
+        socket.on("message:new", onNew);
+        socket.on("message:deleted", onDeleted);
+        socket.on("message:likes", onLikes);
+        socket.connect();
+
+        return () => {
+            socket.off("connect", onConnect);
+            socket.off("message:new", onNew);
+            socket.off("message:deleted", onDeleted);
+            socket.off("message:likes", onLikes);
+            socket.disconnect();
+        };
+    }, [userId, fetchMessages]);
 
     // Admin posts are pinned to the top of the feed.
     const sortedMessages = [...messages].sort((a, b) => {
@@ -70,6 +109,7 @@ export default function Home() {
                 </div>
             ) : (
                 <>
+                    <LiveStatus />
                     <CreateMessage setMessages={setMessages} />
                     {sortedMessages.length === 0 ? (
                         <div className="px-6 py-20 text-center">
@@ -81,9 +121,9 @@ export default function Home() {
                             <Message key={message._id} message={message} setMessages={setMessages} />
                         ))
                     )}
-                    <AutoRefresh refreshData={fetchMessages} />
                 </>
             )}
+            <TypingIndicator />
             <DisclaimerModal />
         </main>
     );

@@ -35,6 +35,8 @@ const createMessage = async (req, res) => {
         // straight into the feed (same shape as GET /messages items).
         await newMsg.populate('user', 'name role');
 
+        req.app.get('io')?.emit('message:new', newMsg);
+
         res.status(201).json(newMsg);
 
     }catch(err){
@@ -64,6 +66,8 @@ const deleteMessage = async (req, res) => {
 
         await Message.findByIdAndDelete(req.params.id);
 
+        req.app.get('io')?.emit('message:deleted', { id: req.params.id });
+
         const successMessage = isAdmin && !isOwner
             ? "Post deleted by Creator/Admin successfully!"
             : "Your post was deleted successfully!";
@@ -87,13 +91,19 @@ const toggleLikeMessage = async(req, res) => {
 
         const hasLiked = message.likes.includes(req.user._id);
 
-        if(!hasLiked){
-            await Message.findByIdAndUpdate(req.params.id, { $addToSet: { likes: req.user._id } });
-            res.status(200).json({ message : `Message Liked!` });
-        }else{
-            await Message.findByIdAndUpdate(req.params.id, { $pull: { likes: req.user._id } });
-            res.status(200).json({ message : "Message unliked!" });
+        const update = hasLiked
+            ? { $pull: { likes: req.user._id } }
+            : { $addToSet: { likes: req.user._id } };
+
+        const updated = await Message.findByIdAndUpdate(req.params.id, update, { new: true })
+            .populate('likes', 'name');
+
+        // Tell every open feed the new like list (same shape as GET /messages).
+        if(updated){
+            req.app.get('io')?.emit('message:likes', { id: req.params.id, likes: updated.likes });
         }
+
+        res.status(200).json({ message : hasLiked ? "Message unliked!" : `Message Liked!` });
 
     }catch(err){
         console.error(`Like toggle failed:`, err);
