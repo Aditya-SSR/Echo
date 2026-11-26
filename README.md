@@ -4,7 +4,6 @@
 
 Echo is a full-stack social media application focused on simplicity, performance, and scalability. Built from the ground up using the MERN ecosystem and Next.js, it provides secure authentication, global messaging, role-based authorization, and a clean, distraction-free user experience.
 
-The interface embraces a **Neo-Brutalist** design language—high contrast, bold typography, thick borders, and minimal visual clutter—creating an experience that feels modern while remaining highly functional.
 
 ###  Live Demo
 
